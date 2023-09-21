@@ -16,7 +16,7 @@ pub trait BlurAPI {
 	/// FIXME: How will this be used?
 	fn register_event(&mut self, event: &BlurEvent);
 
-	fn notify(&self, event: BlurNotification);
+	fn notify(&self, notif: BlurNotification);
 }
 
 /// Game events used by the [BlurAPI].

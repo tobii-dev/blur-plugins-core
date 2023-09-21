@@ -1,14 +1,22 @@
 pub trait BlurPlugin {
+	/// The name of this plugin
 	fn name(&self) -> &'static str;
+
+	/// Use this function to listen to game events
 	fn on_event(&self, event: &BlurEvent);
+
+	/// Run when the game unloads the plugin DLL
 	fn free(&self);
 }
 
 pub trait BlurAPI {
 	fn set_fps(&mut self, fps: f64) -> bool;
 	fn get_fps(&self) -> f64;
+
+	/// FIXME: How will this be used?
 	fn register_event(&mut self, event: &BlurEvent);
-	fn notify(&self, event: BlurEvent);
+
+	fn notify(&self, event: BlurNotification);
 }
 
 /// Game events used by the [BlurAPI].
@@ -40,9 +48,27 @@ pub enum BlurEvent {
 	},
 }
 
-/// What the plugin_init function should look like:
+/// Used to notify the [BlurAPI] of game events, with [BlurAPI::notify]
+/// A [BlurPlugin] can listen to the generated [BlurEvent] using [BlurPlugin::on_event]
+#[derive(Debug)]
+pub enum BlurNotification {
+	/// TODO: ?
+	Nothing,
+	/// Player presses the "Log in" button to enter online mode.
+	LoginStart,
+	/// TODO: Post login, succesful or not
+	LoginEnd { success: bool },
+
+	/// TODO: ?
+	Screen {
+		/// The name of the screen
+		name: String,
+	},
+}
+
+/// What the plugin_init function should look like. * Careful with the `&'static` lifetime:
 /// ```rust
 /// #[no_mangle]
 /// fn plugin_init(api: &'static mut dyn BlurAPI) -> Box<dyn BlurPlugin>;
 /// ```
-pub type FnInit = fn(&mut dyn BlurAPI) -> Box<dyn BlurPlugin>;
+pub type FnPluginInit = fn(&mut dyn BlurAPI) -> Box<dyn BlurPlugin>;

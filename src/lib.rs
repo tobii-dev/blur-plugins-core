@@ -1,21 +1,38 @@
+use std::{
+	fs::{self, File},
+	io,
+	path::Path,
+};
+
+// TODO: Should BlurPlugin be Send?
 pub trait BlurPlugin {
-	/// The name of this plugin
+	/// The name of this plugin.
 	fn name(&self) -> &'static str;
 
-	/// Use this function to listen to game events
+	/// Use this function to listen to game events.
 	fn on_event(&self, event: &BlurEvent);
 
-	/// Run when the game unloads the plugin DLL
+	/// When the game unloads this plugin.
 	fn free(&self);
 }
 
-pub trait BlurAPI {
+// TODO: Send + Sync ?
+pub trait BlurAPI: Send + Sync {
+	/// Set the target FPS for the frame limiter.
+	/// Set to zero to disable FPS limit.
 	fn set_fps(&mut self, fps: f64) -> bool;
+
+	/// Get the frame limiter target FPS.
+	/// Zero means uncapped.
 	fn get_fps(&self) -> f64;
 
-	/// FIXME: How will this be used?
+	// FIXME: How will this be used?
+	#[doc(hidden)]
 	fn register_event(&mut self, event: &BlurEvent);
 
+	/// Notify the API of game events.
+	/// Some notifications trigger [BlurPlugin::on_event].
+	/// Careful with calling this from [BlurPlugin::on_event], don't create an infinite loop!
 	fn notify(&self, notif: BlurNotification);
 }
 
@@ -27,11 +44,13 @@ pub enum BlurEvent {
 	/// Placeholder, don't know what I'll use this for yet
 	/// TODO: ?
 	NoEvent,
+
 	/// Fired when the player presses the "Log in" button on entering online mode.
 	LoginStart {
 		/// username they tried to log in with
 		username: String,
 	},
+
 	/// Fired after login, succesful or not
 	LoginEnd {
 		/// username they tried to log in with
@@ -54,8 +73,10 @@ pub enum BlurEvent {
 pub enum BlurNotification {
 	/// TODO: ?
 	Nothing,
+
 	/// Player presses the "Log in" button to enter online mode.
 	LoginStart,
+
 	/// TODO: Post login, succesful or not
 	LoginEnd { success: bool },
 
@@ -66,9 +87,28 @@ pub enum BlurNotification {
 	},
 }
 
-/// What the plugin_init function should look like. * Careful with the `&'static` lifetime:
+/// Convenience for creating log files next to the Blur savefile.
+/// Usually this is at `"%APPDATA%\\bizarre creations\\blur\\amax\\log"`
+pub fn create_log_file(name: impl AsRef<Path>) -> Result<File, io::Error> {
+	let dir = known_folders::get_known_folder_path(known_folders::KnownFolder::RoamingAppData)
+		.ok_or_else(|| io::Error::other("Couldn't get %APPDATA%/Roaming as a KnownFolder"))?
+		.join("bizarre creations")
+		.join("blur")
+		.join("amax")
+		.join("log");
+	if !&dir.is_dir() {
+		fs::create_dir_all(&dir)?;
+	}
+	let log_file = dir.join(name);
+	File::create(log_file)
+}
+
+
+/// What the exported `plugin_init` function should look like:
+///FIXME: `&'static` lifetime is a lie.
 /// ```rust
 /// #[no_mangle]
 /// fn plugin_init(api: &'static mut dyn BlurAPI) -> Box<dyn BlurPlugin>;
 /// ```
+///TODO: Consider some sort of `blur_plugin_init!()` macro.
 pub type FnPluginInit = fn(&mut dyn BlurAPI) -> Box<dyn BlurPlugin>;

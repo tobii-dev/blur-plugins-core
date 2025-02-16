@@ -1,10 +1,11 @@
 use std::{
+	ffi::c_void,
 	fs::{self, File},
 	io,
 	path::Path,
 };
 
-// TODO: Should BlurPlugin be Send?
+// TODO: Should BlurPlugin be Send + Sync?
 pub trait BlurPlugin {
 	/// The name of this plugin.
 	fn name(&self) -> &'static str;
@@ -16,7 +17,8 @@ pub trait BlurPlugin {
 	fn free(&self);
 }
 
-// TODO: Send + Sync ?
+// TODO: Send + Sync are lies
+// We might wanna "protect" the BlurAPI with Arc<Mutex<?>>
 pub trait BlurAPI: Send + Sync {
 	/// Set the target FPS for the frame limiter.
 	/// Set to zero to disable FPS limit.
@@ -34,6 +36,17 @@ pub trait BlurAPI: Send + Sync {
 	/// Some notifications trigger [BlurPlugin::on_event].
 	/// Careful with calling this from [BlurPlugin::on_event], don't create an infinite loop!
 	fn notify(&self, notif: BlurNotification);
+
+	/// Get pointer to the IDirect3D9Device that's creating the scene.
+	/// This can return a null_ptr if the device hasn't been initialized yet.
+	/// For now i'll keep this function, but really this shouldn't be here, it should be sent via BlurEvent when the device is initialized.
+	fn get_d3d9dev(&self) -> *mut c_void;
+
+	fn get_exe_base_ptr(&self) -> *mut c_void;
+
+	/// Reads the saved player username from the profile.
+	// If you can find an example where this string is empty or wrong, please let me know!
+	fn get_saved_profile_username(&self) -> String;
 }
 
 /// Game events used by the [BlurAPI].
@@ -65,6 +78,16 @@ pub enum BlurEvent {
 		/// The name of the screen
 		name: String,
 	},
+
+	/// TODO: Docs
+	PluginData {
+		id: usize,
+		data: String,
+	},
+
+	Direct3DInit {
+		dev_ptr: *mut c_void,
+	},
 }
 
 /// Used to notify the [BlurAPI] of game events, with [BlurAPI::notify]
@@ -85,6 +108,9 @@ pub enum BlurNotification {
 		/// The name of the screen
 		name: String,
 	},
+
+	/// TODO: Docs
+	PluginStuff { id: usize, data: String },
 }
 
 /// Convenience for creating log files next to the Blur savefile.
@@ -102,7 +128,6 @@ pub fn create_log_file(name: impl AsRef<Path>) -> Result<File, io::Error> {
 	let log_file = dir.join(name);
 	File::create(log_file)
 }
-
 
 /// What the exported `plugin_init` function should look like:
 ///FIXME: `&'static` lifetime is a lie.
